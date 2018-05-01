@@ -1,0 +1,147 @@
+#a. pretty printing json file to explore the data and find the number of records
+
+jq '.' assess2_data.json
+jq '. | length' assess2_data.json
+
+
+#b.
+import json
+f = open('assess2_data.json','r') #read json from the file
+d = json.load(f) #read from file 
+
+#since the file is a list of dictionaries we need to go row by row and see the value corresponding to the key 'name'
+
+listName= [listValue['NAME'] for listValue in d]
+
+#now that we have a list with all the values we can count which values have a count >1 and print those values
+
+from collections import Counter
+
+for x,count in Counter(listName).items():
+	if count>1:
+		print 'duplicated name: ' x 
+
+
+#c deleting rows with -9999
+
+sed '/-9999/d' assess2_data.json>>newdataset.json
+jq '. | length' newdataset.json
+
+
+#d
+#reading new dataset which is a json file
+
+import json
+f = open('newdataset.json','r') #read json from the file
+d = json.load(f) #read from file 
+
+#Find the list of unique values in column RFF_2F,RFA_2A and Wealth_Index
+list_RFA_2F = list()
+list_RFA_2A = list()
+wealth_index = list()
+for readRow in d:
+	list_RFA_2F.append(readRow['RFA_2F'])
+	list_RFA_2A.append(readRow['RFA_2A'])
+	wealth_index.append(readRow['WEALTH_INDEX'])
+
+#Printing the values and count for RFF_2F,RFA_2A
+print Counter(list_RFA_2F)
+print Counter(list_RFA_2A)
+
+#e calculating proportion of response
+
+CountResponse =0
+CountNoResponse =0
+for readRow in d:
+	if readRow ['TARGET_B']==0:
+		CountNoResponse +=1
+	else:
+		CountResponse +=1
+
+print 'proportion of target customers who responded is ' +str(float(CountResponse)/(CountResponse+CountNoResponse)*100) +'%'
+
+#f creating dendrogram
+# converting RFA_2A to numeric a deleting PEPSTRFL and NAME 
+
+import pandas as pd
+from scipy.cluster.hierarchy import dendrogram, linkage
+from matplotlib import pyplot as plt
+from sklearn import cluster
+from sklearn import preprocessing
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+
+df=pd.DataFrame(d)
+df['RFA_2A']=df['RFA_2A'].map({'E':1, 'D':2, 'G':3, 'F':4}) #convert to numeric
+del df['PEPSTRFL']
+del df['NAME']
+
+#normalizing the values 
+x=df.values
+min_max_scaler=preprocessing.MinMaxScaler()
+x_scaled=min_max_scaler.fit_transform(x)
+df_scaled=pd.DataFrame(x_scaled)
+
+#take sample size of 1000
+rows=np.random.choice(df_scaled.index.values,1000)
+sample_df=df_scaled.loc[rows]
+
+#plot dendrogram
+plt.figure(1)
+Dg=linkage(sample_df,method='ward',metric='euclidean')
+plt.title('Dendrogram')
+plt.ylabel('Distance')
+plt.xlabel('Customer')
+
+dendrogram(Dg,leaf_font_size=6.,)
+plt.axhline(y=250, c='k')
+plt.show()
+
+#g 
+#separating responders and non responders along with wealth_index
+df2=df.loc[:,['WEALTH_INDEX','TARGET_B']]
+df_responders_wealth=df2[df2.TARGET_B>0]
+df_non_responders_wealth=df2[df2.TARGET_B<1]
+df_responders=df_responders_wealth['WEALTH_INDEX']
+df_non_responders=df_non_responders_wealth['WEALTH_INDEX']
+
+
+#plotting in histogram
+plt.hist(df_non_responders, bins=20, label='non responders')
+plt.hist(df_responders, bins=20, label='responders')
+plt.legend()
+plt.title('Histogram distribution of responders and non responders')
+plt.xlabel('Wealth_Index')
+plt.ylabel('Number of people')
+plt.show()
+
+plt.hist(df_non_responders, bins=20, normed=True, label='non responders')
+plt.hist(df_responders, bins=20, normed=True, label='responders')
+plt.legend()
+plt.title('Histogram percentage distribution of responders and non responders')
+plt.xlabel('Wealth_Index')
+plt.ylabel('Percentage of people')
+plt.show()
+
+
+
+#h sorting by name
+df=pd.DataFrame(d)
+df['RFA_2A']=df['RFA_2A'].map({'E':1, 'D':2, 'G':3, 'F':4}) #convert to numeric
+del df['PEPSTRFL']
+df_name_sorted=df.sort_values(by='NAME')
+df_reindexed=df_name_sorted.reset_index()
+del df_reindexed['index']
+df_reindexed.index=df_reindexed.index+1
+print df_reindexed[0:10]
+print df_reindexed[19999:20010]
+
+
+#i sorting by last name
+#split the name and then sort on the last element in the split name i.e. index-1
+Alphabetized_list=sorted(d, key=lambda k: str.split(str(k['NAME']))[-1])
+for index in range (0,11):
+	print str(index) + '\t' + Alphabetized_list[index]['NAME']
+for index in range (20000,20011):
+	print str(index) + '\t' + Alphabetized_list[index]['NAME']
+
